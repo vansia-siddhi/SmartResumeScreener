@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Screening Report - Smart Resume Screener</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+<nav>
+    <div class="nav-container">
+        <div class="logo"><i class="fas fa-file-alt"></i><span>Resume Screener</span></div>
+        <div class="nav-links">
+            <a href="/"><i class="fas fa-home"></i> Home</a>
+            <a href="/dashboard"><i class="fas fa-chart-bar"></i> Dashboard</a>
+            <a href="/analyze"><i class="fas fa-upload"></i> Analyze</a>
+        </div>
+    </div>
+</nav>
+
+<section class="report-page">
+    <div class="container">
+        <div id="reportContent">
+            <div class="loading" style="text-align: center; padding: 60px;">
+                <i class="fas fa-spinner fa-spin" style="font-size: 3rem; color: #3498db;"></i>
+                <p style="color: var(--text-muted); margin-top: 20px;">Loading report...</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<footer>
+    <div class="container">
+        <p>&copy; 2026 Smart Resume Screener. All rights reserved.</p>
+    </div>
+</footer>
+
+<script>
+    const reportId = window.location.pathname.split('/').pop();
+
+    async function loadReport() {
+        try {
+            const response = await fetch(`/api/report/${reportId}`);
+            const data = await response.json();
+
+            if (data.error) {
+                document.getElementById('reportContent').innerHTML = `
+                        <div class="error" style="text-align: center; padding: 40px;">
+                            <i class="fas fa-exclamation-circle" style="font-size: 3rem; color: #e74c3c;"></i>
+                            <h3>Report Not Found</h3>
+                            <p>${data.error}</p>
+                            <a href="/dashboard" class="btn-primary" style="margin-top: 20px;">Go to Dashboard</a>
+                        </div>
+                    `;
+                return;
+            }
+
+            displayReport(data);
+        } catch (error) {
+            document.getElementById('reportContent').innerHTML = `
+                    <div class="error" style="text-align: center; padding: 40px;">
+                        <i class="fas fa-exclamation-circle" style="font-size: 3rem; color: #e74c3c;"></i>
+                        <h3>Error Loading Report</h3>
+                        <p>${error.message}</p>
+                        <a href="/dashboard" class="btn-primary" style="margin-top: 20px;">Go to Dashboard</a>
+                    </div>
+                `;
+        }
+    }
+
+    function displayReport(data) {
+        const match = data.match_results || [];
+        const skills = data.skills || {};
+        const insights = data.insights || {};
+        const parsed = data.parsed_data || {};
+
+        // Get the best match (first result)
+        const bestMatch = match.length > 0 ? match[0] : null;
+        const score = bestMatch ? bestMatch.overall_score || 0 : 0;
+        const color = score >= 80 ? '#27ae60' : score >= 60 ? '#f39c12' : '#e74c3c';
+
+        // Candidate Info
+        const candidateName = parsed.name || 'Unknown';
+        const email = parsed.email || 'N/A';
+        const phone = parsed.phone || 'N/A';
+        const wordCount = parsed.word_count || 0;
+
+        // Start building HTML
+        let html = `
+                <!-- Report Header -->
+                <div class="report-header">
+                    <h1>📄 Resume Screening Report</h1>
+                    <div class="report-meta">
+                        <span><strong>👤 Candidate:</strong> ${candidateName}</span>
+                        <span><strong>📎 Resume:</strong> ${data.filename || 'Unknown'}</span>
+                        <span><strong>📅 Date:</strong> ${new Date(data.timestamp).toLocaleString()}</span>
+                    </div>
+                </div>
+
+                <div style="padding: 12px 16px; background: rgba(52, 152, 219, 0.08); border-radius: 8px; margin-bottom: 20px; border-left: 3px solid #3498db;">
+                    <p style="color: var(--text-secondary); font-size: 0.9rem;">
+                        <i class="fas fa-info-circle" style="color: #3498db;"></i>
+                        <strong>Note:</strong> Skills are extracted directly from the resume. Only skills found in the document are shown.
+                    </p>
+                </div>
+
+                <!-- Quick Stats -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin: 20px 0;">
+                    <div class="stat-card" style="border-left: 4px solid ${color};">
+                        <div class="stat-info">
+                            <span class="stat-number" style="color: ${color};">${score}%</span>
+                            <span class="stat-label">Match Score</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-info">
+                            <span class="stat-number">${skills.total_skills || 0}</span>
+                            <span class="stat-label">Skills Found</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-info">
+                            <span class="stat-number">${bestMatch ? bestMatch.skills_match?.length || 0 : 0}</span>
+                            <span class="stat-label">Skills Matched</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-info">
+                            <span class="stat-number">${wordCount}</span>
+                            <span class="stat-label">Words</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+        // ============================================
+        // BEST MATCH SECTION
+        // ============================================
+        if (bestMatch) {
+            const roleName = bestMatch.role_name || 'N/A';
+            const rec = bestMatch.recommendation || 'No recommendation';
+            const recColor = bestMatch.overall_score >= 80 ? '#27ae60' : bestMatch.overall_score >= 60 ? '#f39c12' : '#e74c3c';
+
+            html += `
+                    <div class="report-section" style="background: rgba(52, 152, 219, 0.05); border-radius: 12px; padding: 20px; border-left: 4px solid ${recColor};">
+                        <h2 style="margin-bottom: 10px;">🎯 Best Match: ${roleName}</h2>
+                        <p style="font-size: 1.1rem; font-weight: 600; color: ${recColor};">${rec}</p>
+
+                        <!-- Detailed Scores -->
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-top: 16px;">
+                            <div style="text-align: center; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 8px;">
+                                <div style="font-size: 0.8rem; color: var(--text-muted);">Skills</div>
+                                <div style="font-size: 1.2rem; font-weight: 700; color: ${bestMatch.skills_score >= 70 ? '#27ae60' : '#f39c12'};">${bestMatch.skills_score || 0}%</div>
+                            </div>
+                            <div style="text-align: center; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 8px;">
+                                <div style="font-size: 0.8rem; color: var(--text-muted);">Experience</div>
+                                <div style="font-size: 1.2rem; font-weight: 700; color: ${bestMatch.experience_score >= 70 ? '#27ae60' : '#f39c12'};">${bestMatch.experience_score || 0}%</div>
+                            </div>
+                            <div style="text-align: center; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 8px;">
+                                <div style="font-size: 0.8rem; color: var(--text-muted);">Education</div>
+                                <div style="font-size: 1.2rem; font-weight: 700; color: ${bestMatch.education_score >= 70 ? '#27ae60' : '#f39c12'};">${bestMatch.education_score || 0}%</div>
+                            </div>
+                            <div style="text-align: center; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 8px;">
+                                <div style="font-size: 0.8rem; color: var(--text-muted);">Certifications</div>
+                                <div style="font-size: 1.2rem; font-weight: 700; color: ${bestMatch.certification_score >= 70 ? '#27ae60' : '#f39c12'};">${bestMatch.certification_score || 0}%</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+        }
+
+        // ============================================
+        // SKILLS MATCH SECTION
+        // ============================================
+        if (bestMatch) {
+            const matched = bestMatch.skills_match || [];
+            const missing = bestMatch.skills_missing || [];
+
+            html += `
+                    <div class="report-section" style="margin-top: 20px;">
+                        <h2>📊 Skill Analysis</h2>
+
+                        ${matched.length > 0 ? `
+                            <div style="margin-bottom: 35px;">
+                                <h4 style="color: #27ae60; margin-bottom: 20px;">✅ Matched Skills (${matched.length})</h4>
+                                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                    ${matched.map(s => `<span style="background: rgba(39, 174, 96, 0.15); padding: 4px 14px; border-radius: 20px; border: 1px solid rgba(39, 174, 96, 0.3); color: #27ae60;">${s}</span>`).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+
+                        ${missing.length > 0 ? `
+                            <div style="margin-bottom: 35px;">
+                                <h4 style="color: #e74c3c; margin-bottom: 20px;">❌ Missing Skills (${missing.length})</h4>
+                                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                    ${missing.map(s => `<span style="background: rgba(231, 76, 60, 0.15); padding: 4px 14px; border-radius: 20px; border: 1px solid rgba(231, 76, 60, 0.3); color: #e74c3c;">${s}</span>`).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+        }
+
+        // ============================================
+        // ALL ROLES COMPARISON
+        // ============================================
+        if (match.length > 1) {
+            html += `
+                    <div class="report-section" style="margin-top: 20px;">
+                        <h2>📈 All Roles Comparison</h2>
+                        <div class="table-container" style="padding: 12px; margin-top: 10px;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Role</th>
+                                        <th>Score</th>
+                                        <th>Skills Matched</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${match.map(role => {
+                const sc = role.overall_score || 0;
+                const scColor = sc >= 80 ? '#27ae60' : sc >= 60 ? '#f39c12' : '#e74c3c';
+                const status = sc >= 80 ? '✅ Strong' : sc >= 60 ? '⚠️ Good' : '❌ Needs Work';
+                return `
+                                            <tr>
+                                                <td><strong>${role.role_name || 'N/A'}</strong></td>
+                                                <td><span style="color: ${scColor}; font-weight: 700;">${sc}%</span></td>
+                                                <td>${role.skills_match?.length || 0}</td>
+                                                <td style="color: ${scColor};">${status}</td>
+                                            </tr>
+                                        `;
+            }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+        }
+
+        // ============================================
+        // STRENGTHS & WEAKNESSES
+        // ============================================
+        const strengths = insights.strengths || [];
+        const weaknesses = insights.weaknesses || [];
+        const recommendations = insights.recommendations || [];
+
+        if (strengths.length > 0 || weaknesses.length > 0) {
+            html += `
+                    <div class="report-section" style="margin-top: 20px;">
+                        <h2>💡 Insights</h2>
+
+                        ${strengths.length > 0 ? `
+                            <div style="margin-bottom: 35px;">
+                                <h4 style="color: #27ae60; margin-bottom: 20px;">💪 Strengths</h4>
+                                <ul style="list-style: none; padding: 0;">
+                                    ${strengths.map(s => `<li style="padding: 6px 12px; background: rgba(39, 174, 96, 0.05); border-radius: 6px; margin-bottom: 4px; color: var(--text-secondary);">✅ ${s}</li>`).join('')}
+                                </ul>
+                            </div>
+                        ` : ''}
+
+                        ${weaknesses.length > 0 ? `
+                            <div style="margin-bottom: 35px;">
+                                <h4 style="color: #e74c3c; margin-bottom: 20px;">⚠️ Areas for Improvement</h4>
+                                <ul style="list-style: none; padding: 0;">
+                                    ${weaknesses.map(w => `<li style="padding: 6px 12px; background: rgba(231, 76, 60, 0.05); border-radius: 6px; margin-bottom: 4px; color: var(--text-secondary);">❌ ${w}</li>`).join('')}
+                                </ul>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+        }
+
+        // ============================================
+        // RECOMMENDATIONS
+        // ============================================
+        if (recommendations.length > 0) {
+            html += `
+                    <div class="report-section" style="margin-top: 20px;">
+                        <h2>📌 Recommendations</h2>
+                        <ul style="list-style: none; padding: 0;">
+                            ${recommendations.map(rec => `
+                                <li style="padding: 10px 14px; background: rgba(52, 152, 219, 0.05); border-radius: 8px; margin-bottom: 6px; border-left: 3px solid ${rec.priority === 'high' ? '#e74c3c' : '#f39c12'};">
+                                    <span style="font-weight: 600; color: var(--text-primary);">${rec.message}</span>
+                                </li>
+                            `).join('')}
+                        </ul>
+                    </div>
+                `;
+        }
+
+        // ============================================
+        // ACTION BUTTONS
+        // ============================================
+        html += `
+                <div class="report-actions" style="margin-top: 20px; padding: 20px; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-glass); display: flex; gap: 12px; flex-wrap: wrap;">
+                    <a href="/dashboard" class="btn-secondary"><i class="fas fa-arrow-left"></i> Dashboard</a>
+                    <a href="/api/export-pdf/${reportId}" class="btn-primary"><i class="fas fa-file-pdf"></i> Download PDF</a>
+                    <a href="/analyze" class="btn-secondary"><i class="fas fa-upload"></i> New Analysis</a>
+                </div>
+            `;
+
+        document.getElementById('reportContent').innerHTML = html;
+    }
+
+    document.addEventListener('DOMContentLoaded', loadReport);
+</script>
+</body>
+</html>

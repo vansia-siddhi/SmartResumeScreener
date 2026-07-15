@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Smart Resume Screener</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+<nav>
+    <div class="nav-container">
+        <div class="logo">
+            <i class="fas fa-file-alt"></i>
+            <span>Resume Screener</span>
+        </div>
+        <div class="nav-links">
+            <a href="/"><i class="fas fa-home"></i> Home</a>
+            <a href="/dashboard" class="active"><i class="fas fa-chart-bar"></i> Dashboard</a>
+            <a href="/analyze"><i class="fas fa-upload"></i> Analyze</a>
+        </div>
+    </div>
+</nav>
+
+<section class="dashboard">
+    <div class="container">
+        <h1>📊 Dashboard</h1>
+
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon"><i class="fas fa-file"></i></div>
+                <div class="stat-info">
+                    <span class="stat-number" id="totalReports">0</span>
+                    <span class="stat-label">Total Reports</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(39, 174, 96, 0.15);"><i class="fas fa-users" style="color: #27ae60;"></i></div>
+                <div class="stat-info">
+                    <span class="stat-number" id="totalCandidates">0</span>
+                    <span class="stat-label">Candidates</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(52, 152, 219, 0.15);"><i class="fas fa-chart-line" style="color: #3498db;"></i></div>
+                <div class="stat-info">
+                    <span class="stat-number" id="avgScore">0%</span>
+                    <span class="stat-label">Average Score</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(243, 156, 18, 0.15);"><i class="fas fa-trophy" style="color: #f39c12;"></i></div>
+                <div class="stat-info">
+                    <span class="stat-number" id="topRole">-</span>
+                    <span class="stat-label">Top Role</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reports Table -->
+        <div class="reports-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+                <h2 style="margin: 0;">📋 Recent Reports</h2>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="loadDashboard()" class="btn-secondary" style="padding: 8px 16px; font-size: 0.9rem;">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                    <button onclick="clearAllReports()" class="btn-danger" style="padding: 8px 16px; font-size: 0.9rem;">
+                        <i class="fas fa-trash"></i> Clear All
+                    </button>
+                </div>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Candidate / File</th>
+                        <th>Role</th>
+                        <th>Score</th>
+                        <th>Skills Matched</th>
+                        <th>Date</th>
+                        <th>Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody id="reportsBody">
+                    <tr>
+                        <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 40px;">
+                            <i class="fas fa-inbox" style="font-size: 2rem; display: block; margin-bottom: 10px;"></i>
+                            No reports yet. <a href="/analyze" style="color: #3498db;">Analyze a resume</a>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+
+<footer>
+    <div class="container">
+        <p>&copy; 2024 Smart Resume Screener. All rights reserved.</p>
+    </div>
+</footer>
+
+<script>
+    // ============================================
+    // LOAD DASHBOARD DATA
+    // ============================================
+
+    async function loadDashboard() {
+        try {
+            const response = await fetch('/api/reports');
+            const data = await response.json();
+
+            console.log('Reports data:', data);
+
+            if (data.error) {
+                console.error('Error loading reports:', data.error);
+                return;
+            }
+
+            const reports = data.reports || [];
+
+            // Update stats
+            document.getElementById('totalReports').textContent = reports.length;
+            document.getElementById('totalCandidates').textContent = reports.length;
+
+            // Calculate average score
+            let totalScore = 0;
+            let roleCounts = {};
+            let topRole = '-';
+            let maxRoleCount = 0;
+
+            reports.forEach(r => {
+                totalScore += r.score || 0;
+
+                const role = r.role || 'Unknown';
+                roleCounts[role] = (roleCounts[role] || 0) + 1;
+                if (roleCounts[role] > maxRoleCount) {
+                    maxRoleCount = roleCounts[role];
+                    topRole = role;
+                }
+            });
+
+            document.getElementById('avgScore').textContent = reports.length > 0 ? Math.round(totalScore / reports.length) + '%' : '0%';
+            document.getElementById('topRole').textContent = topRole;
+
+            // Populate table
+            const tbody = document.getElementById('reportsBody');
+
+            if (reports.length === 0) {
+                tbody.innerHTML = `
+                        <tr>
+                            <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 40px;">
+                                <i class="fas fa-inbox" style="font-size: 2rem; display: block; margin-bottom: 10px;"></i>
+                                No reports yet. <a href="/analyze" style="color: #3498db;">Analyze a resume</a>
+                            </td>
+                        </tr>
+                    `;
+                return;
+            }
+
+            tbody.innerHTML = '';
+
+            reports.forEach((report, index) => {
+                const score = report.score || 0;
+                const color = score >= 80 ? '#27ae60' : score >= 60 ? '#f39c12' : '#e74c3c';
+
+                // Display: File name if candidate is Unknown, otherwise Candidate name
+                let displayName = report.candidate_name || 'Unknown';
+                if (displayName === 'Unknown' || displayName === '') {
+                    // Show file name without extension
+                    const fileName = report.name || 'Unknown';
+                    displayName = fileName.replace(/\.[^/.]+$/, ''); // Remove extension
+                    displayName = displayName.replace(/_/g, ' '); // Replace underscores with spaces
+                }
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                        <td style="color: var(--text-muted);">${index + 1}</td>
+                        <td><strong>${displayName}</strong></td>
+                        <td>${report.role || 'N/A'}</td>
+                        <td><span style="color: ${color}; font-weight: 700;">${score}%</span></td>
+                        <td>${report.skills_matched || 0}</td>
+                        <td style="font-size: 0.85rem; color: var(--text-muted);">${report.timestamp ? new Date(report.timestamp).toLocaleString() : 'N/A'}</td>
+                        <td>
+                            <a href="/report/${report.id}" class="btn-small">View</a>
+                            <a href="/api/export-pdf/${report.id}" class="btn-small" style="background: #e74c3c;">PDF</a>
+                        </td>
+                    `;
+                tbody.appendChild(row);
+            });
+
+        } catch (error) {
+            console.error('Error loading dashboard:', error);
+        }
+    }
+
+    // ============================================
+    // CLEAR ALL REPORTS
+    // ============================================
+
+    async function clearAllReports() {
+        if (!confirm('⚠️ Are you sure you want to delete ALL reports? This cannot be undone!')) {
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/clear-reports', {
+                method: 'POST'
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                showToast('✅ All reports cleared successfully!', 'success');
+                loadDashboard();
+            } else {
+                showToast('❌ Error clearing reports: ' + data.error, 'error');
+            }
+        } catch (error) {
+            showToast('❌ Error: ' + error.message, 'error');
+        }
+    }
+
+    // ============================================
+    // TOAST NOTIFICATION
+    // ============================================
+
+    function showToast(message, type = 'success') {
+        const existing = document.querySelector('.toast');
+        if (existing) existing.remove();
+
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `
+                <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i>
+                ${message}
+            `;
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(100px)';
+            setTimeout(() => toast.remove(), 500);
+        }, 3000);
+    }
+
+    // ============================================
+    // AUTO-LOAD ON PAGE LOAD
+    // ============================================
+    document.addEventListener('DOMContentLoaded', loadDashboard);
+
+    // ============================================
+    // TOAST STYLES
+    // ============================================
+    const toastStyles = document.createElement('style');
+    toastStyles.textContent = `
+            .toast {
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                background: var(--bg-card);
+                backdrop-filter: blur(20px);
+                border: 1px solid var(--border-glass);
+                border-radius: 12px;
+                padding: 14px 24px;
+                box-shadow: var(--shadow-glass);
+                z-index: 1000;
+                animation: slideIn 0.5s ease;
+                color: var(--text-primary);
+                max-width: 400px;
+            }
+
+            .toast.success {
+                border-left: 4px solid #2ecc71;
+            }
+
+            .toast.error {
+                border-left: 4px solid #e74c3c;
+            }
+
+            @keyframes slideIn {
+                from {
+                    opacity: 0;
+                    transform: translateX(100px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateX(0);
+                }
+            }
+        `;
+    document.head.appendChild(toastStyles);
+</script>
+</body>
+</html>

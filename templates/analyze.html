@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analyze Resume - Smart Resume Screener</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+<!-- Navigation -->
+<nav>
+    <div class="nav-container">
+        <div class="logo">
+            <i class="fas fa-file-alt"></i>
+            <span>Resume Screener</span>
+        </div>
+        <div class="nav-links">
+            <a href="/"><i class="fas fa-home"></i> Home</a>
+            <a href="/dashboard"><i class="fas fa-chart-bar"></i> Dashboard</a>
+            <a href="/analyze" class="active"><i class="fas fa-upload"></i> Analyze</a>
+        </div>
+    </div>
+</nav>
+
+<!-- Main Content -->
+<section class="analyze-page">
+    <div class="container">
+        <h1>📄 Analyze Resume</h1>
+        <p style="text-align: center; color: var(--text-secondary); margin-bottom: 30px;">
+            Upload a resume to analyze skills, experience, and match with job roles
+        </p>
+
+        <!-- Upload Box -->
+        <div class="analyze-box">
+            <!-- File Upload Area -->
+            <div class="upload-area" id="uploadArea">
+                <i class="fas fa-cloud-upload-alt" style="font-size: 3rem; color: #3498db;"></i>
+                <p>Drag & drop your resume here</p>
+                <p style="color: var(--text-muted); font-size: 0.9rem;">or click to browse</p>
+                <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 10px;">
+                    Supported formats: PDF, DOCX, TXT
+                </p>
+                <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.txt">
+            </div>
+
+            <!-- Job Title -->
+            <div class="form-group">
+                <input type="text" id="jobTitle" placeholder="Job Title (e.g., WordPress Developer)" class="form-input">
+            </div>
+
+            <!-- Role Selection -->
+            <div class="form-group">
+                <label style="color: var(--text-secondary); margin-bottom: 6px; display: block;">Select Role (or Auto-Detect)</label>
+                <select id="roleSelect" class="form-input">
+                    <option value="auto">🔍 Auto-Detect Best Role</option>
+                    <option value="wordpress_developer">📝 WordPress Developer</option>
+                    <option value="shopify_developer">🛍️ Shopify Developer</option>
+                    <option value="business_development_engineer">📈 Business Development Engineer</option>
+                    <option value="dotnet_developer">⚙️ .Net Developer</option>
+                    <option value="python_ai_developer">🐍 Python/AI Developer</option>
+                </select>
+            </div>
+
+            <!-- Job Description -->
+            <div class="form-group">
+                <textarea id="jobDescription" placeholder="Paste job description here (optional)..." class="form-input" style="min-height: 100px; resize: vertical;"></textarea>
+            </div>
+
+            <!-- Analyze Button -->
+            <button onclick="analyzeResume()" class="btn-primary" id="analyzeBtn" disabled>
+                <i class="fas fa-search"></i> Analyze Resume
+            </button>
+        </div>
+
+        <!-- Status -->
+        <div id="status" class="status"></div>
+
+        <!-- Results -->
+        <div id="results" style="display: none;"></div>
+    </div>
+</section>
+
+<!-- Footer -->
+<footer>
+    <div class="container">
+        <p>&copy; 2026 Smart Resume Screener. All rights reserved.</p>
+    </div>
+</footer>
+
+<!-- ============================================ -->
+<!-- JAVASCRIPT -->
+<!-- ============================================ -->
+<script>
+    // ============================================
+    // FILE UPLOAD HANDLING
+    // ============================================
+
+    let selectedFile = null;
+
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+
+    // Click to upload
+    uploadArea.addEventListener('click', () => fileInput.click());
+
+    // Drag over
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.style.borderColor = '#3498db';
+        uploadArea.style.background = 'rgba(52, 152, 219, 0.1)';
+    });
+
+    // Drag leave
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.style.borderColor = 'var(--border-glass)';
+        uploadArea.style.background = 'var(--bg-card)';
+    });
+
+    // Drop
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.style.borderColor = 'var(--border-glass)';
+        uploadArea.style.background = 'var(--bg-card)';
+
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            handleFile(files[0]);
+        }
+    });
+
+    // File input change
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            handleFile(e.target.files[0]);
+        }
+    });
+
+    function handleFile(file) {
+        const validTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
+
+        if (!validTypes.includes(file.type) && !file.name.endsWith('.pdf') && !file.name.endsWith('.docx') && !file.name.endsWith('.txt')) {
+            alert('Please upload a valid resume (PDF, DOCX, TXT)');
+            return;
+        }
+
+        selectedFile = file;
+        document.getElementById('analyzeBtn').disabled = false;
+        uploadArea.innerHTML = `
+                <i class="fas fa-file" style="font-size: 2rem; color: #27ae60;"></i>
+                <p><strong>${file.name}</strong></p>
+                <p style="color: var(--text-muted); font-size: 0.9rem;">${(file.size / 1024).toFixed(1)} KB</p>
+                <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 10px;">Click to change</p>
+            `;
+        uploadArea.style.borderColor = '#27ae60';
+    }
+
+
+    // ============================================
+    // ANALYZE RESUME
+    // ============================================
+
+    async function analyzeResume() {
+        if (!selectedFile) {
+            alert('Please select a resume first');
+            return;
+        }
+
+        const jobTitle = document.getElementById('jobTitle').value.trim();
+        const jobDescription = document.getElementById('jobDescription').value.trim();
+        const role = document.getElementById('roleSelect').value;
+
+        const statusDiv = document.getElementById('status');
+        const resultsDiv = document.getElementById('results');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+
+        // Show loading
+        statusDiv.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Analyzing resume...</div>';
+        statusDiv.className = 'status active';
+        resultsDiv.style.display = 'none';
+        analyzeBtn.disabled = true;
+
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('job_title', jobTitle);
+        formData.append('job_description', jobDescription);
+        formData.append('role', role);
+
+        try {
+            const response = await fetch('/api/analyze', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (data.error) {
+                statusDiv.innerHTML = `<div class="error">${data.error}</div>`;
+                analyzeBtn.disabled = false;
+                return;
+            }
+
+            // Display results
+            displayResults(data);
+
+            statusDiv.innerHTML = `<div class="success">✅ Analysis complete!</div>`;
+
+        } catch (error) {
+            statusDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+        } finally {
+            analyzeBtn.disabled = false;
+        }
+    }
+
+
+    // ============================================
+    // DISPLAY RESULTS
+    // ============================================
+
+    function displayResults(data) {
+        const r = data.results;
+        const match = r.match_results || [];
+        const skills = r.skills || {};
+        const insights = r.insights || {};
+        const parsed = r.parsed_data || {};
+
+        // Get best match (first result, highest score)
+        const bestMatch = match.length > 0 ? match[0] : null;
+        const score = bestMatch ? bestMatch.overall_score || 0 : 0;
+        const color = score >= 80 ? '#27ae60' : score >= 60 ? '#f39c12' : '#e74c3c';
+        const candidateName = parsed.name || 'Unknown';
+
+        let html = `
+                <!-- Result Summary -->
+                <div class="result-summary">
+                    <h2>${candidateName} - Resume Analysis</h2>
+
+                    <!-- Stats Cards -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 16px; margin: 20px 0;">
+                        <div class="stat-card" style="border-left: 4px solid ${color};">
+                            <div class="stat-info">
+                                <span class="stat-number" style="color: ${color};">${score}%</span>
+                                <span class="stat-label">Match Score</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-info">
+                                <span class="stat-number">${skills.total_skills || 0}</span>
+                                <span class="stat-label">Skills Found</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-info">
+                                <span class="stat-number">${bestMatch ? bestMatch.skills_match?.length || 0 : 0}</span>
+                                <span class="stat-label">Skills Matched</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-info">
+                                <span class="stat-number">${parsed.word_count || 0}</span>
+                                <span class="stat-label">Words</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Best Match -->
+                    ${bestMatch ? `
+                        <div style="padding: 16px; background: rgba(52, 152, 219, 0.08); border-radius: 8px; margin: 16px 0; border-left: 4px solid ${color};">
+                            <p style="font-weight: 600; color: var(--text-primary);">🎯 Best Match: <span style="color: ${color};">${bestMatch.role_name}</span></p>
+                            <p style="color: ${color}; font-weight: 500;">${bestMatch.recommendation || 'No recommendation'}</p>
+                        </div>
+                    ` : ''}
+
+                    <!-- Action Buttons -->
+                    <div class="result-actions">
+                        <a href="/report/${data.report_id}" class="btn-primary">📄 View Full Report</a>
+                        <a href="/api/export-pdf/${data.report_id}" class="btn-secondary">📥 Download PDF</a>
+                    </div>
+                </div>
+            `;
+
+        // ============================================
+        // MATCHED SKILLS
+        // ============================================
+        if (bestMatch && bestMatch.skills_match && bestMatch.skills_match.length > 0) {
+            html += `
+                    <div class="info-section">
+                        <h3 style="color: #27ae60;">✅ Matched Skills (${bestMatch.skills_match.length})</h3>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
+                            ${bestMatch.skills_match.map(s =>
+                `<span class="skill-tag matched">${s}</span>`
+            ).join('')}
+                        </div>
+                    </div>
+                `;
+        }
+
+        // ============================================
+        // MISSING SKILLS
+        // ============================================
+        if (bestMatch && bestMatch.skills_missing && bestMatch.skills_missing.length > 0) {
+            html += `
+                    <div class="info-section">
+                        <h3 style="color: #e74c3c;">❌ Missing Skills (${bestMatch.skills_missing.length})</h3>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
+                            ${bestMatch.skills_missing.map(s =>
+                `<span class="skill-tag missing">${s}</span>`
+            ).join('')}
+                        </div>
+                    </div>
+                `;
+        }
+
+        // ============================================
+        // ALL ROLES COMPARISON
+        // ============================================
+        if (match.length > 1) {
+            html += `
+                    <div class="info-section">
+                        <h3>📊 All Roles Comparison</h3>
+                        <div style="overflow-x: auto; margin-top: 10px;">
+                            <table style="width: 100%; border-collapse: collapse;">
+                                <thead>
+                                    <tr>
+                                        <th style="text-align: left; padding: 10px; border-bottom: 1px solid var(--border-glass); color: var(--text-muted);">Role</th>
+                                        <th style="text-align: center; padding: 10px; border-bottom: 1px solid var(--border-glass); color: var(--text-muted);">Score</th>
+                                        <th style="text-align: center; padding: 10px; border-bottom: 1px solid var(--border-glass); color: var(--text-muted);">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${match.map(role => {
+                const sc = role.overall_score || 0;
+                const scColor = sc >= 80 ? '#27ae60' : sc >= 60 ? '#f39c12' : '#e74c3c';
+                const status = sc >= 80 ? '✅ Strong Fit' : sc >= 60 ? '⚠️ Good Fit' : '❌ Needs Work';
+                return `
+                                            <tr>
+                                                <td style="padding: 10px; border-bottom: 1px solid var(--border-glass);"><strong>${role.role_name || 'N/A'}</strong></td>
+                                                <td style="text-align: center; padding: 10px; border-bottom: 1px solid var(--border-glass);"><span style="color: ${scColor}; font-weight: 700;">${sc}%</span></td>
+                                                <td style="text-align: center; padding: 10px; border-bottom: 1px solid var(--border-glass); color: ${scColor};">${status}</td>
+                                            </tr>
+                                        `;
+            }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+        }
+
+        // ============================================
+        // STRENGTHS & WEAKNESSES
+        // ============================================
+        const strengths = insights.strengths || [];
+        const weaknesses = insights.weaknesses || [];
+
+        if (strengths.length > 0 || weaknesses.length > 0) {
+            html += `
+                    <div class="info-section">
+                        <h3>💡 Insights</h3>
+
+                        ${strengths.length > 0 ? `
+                            <div style="margin-bottom: 12px;">
+                                <h4 style="color: #27ae60; margin-bottom: 6px;">💪 Strengths</h4>
+                                <ul style="list-style: none; padding: 0;">
+                                    ${strengths.map(s => `<li style="padding: 6px 12px; background: rgba(39, 174, 96, 0.05); border-radius: 6px; margin-bottom: 4px; color: var(--text-secondary);">✅ ${s}</li>`).join('')}
+                                </ul>
+                            </div>
+                        ` : ''}
+
+                        ${weaknesses.length > 0 ? `
+                            <div style="margin-bottom: 12px;">
+                                <h4 style="color: #e74c3c; margin-bottom: 6px;">⚠️ Areas for Improvement</h4>
+                                <ul style="list-style: none; padding: 0;">
+                                    ${weaknesses.map(w => `<li style="padding: 6px 12px; background: rgba(231, 76, 60, 0.05); border-radius: 6px; margin-bottom: 4px; color: var(--text-secondary);">❌ ${w}</li>`).join('')}
+                                </ul>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+        }
+
+        // ============================================
+        // RECOMMENDATIONS
+        // ============================================
+        const recommendations = insights.recommendations || [];
+
+        if (recommendations.length > 0) {
+            html += `
+                    <div class="info-section">
+                        <h3>📌 Recommendations</h3>
+                        <ul style="list-style: none; padding: 0;">
+                            ${recommendations.map(rec => `
+                                <li style="padding: 10px 14px; background: rgba(52, 152, 219, 0.05); border-radius: 8px; margin-bottom: 6px; border-left: 3px solid ${rec.priority === 'high' ? '#e74c3c' : '#f39c12'};">
+                                    ${rec.message}
+                                </li>
+                            `).join('')}
+                        </ul>
+                    </div>
+                `;
+        }
+
+        // ============================================
+        // APPLY TO PAGE
+        // ============================================
+        document.getElementById('results').innerHTML = html;
+        document.getElementById('results').style.display = 'block';
+        document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // ============================================
+    // KEYBOARD SHORTCUT: ENTER TO ANALYZE
+    // ============================================
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+            analyzeResume();
+        }
+    });
+
+    // ============================================
+    // TOAST NOTIFICATION
+    // ============================================
+    function showToast(message, type = 'success') {
+        const existing = document.querySelector('.toast');
+        if (existing) existing.remove();
+
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `
+                <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i>
+                ${message}
+            `;
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(100px)';
+            setTimeout(() => toast.remove(), 500);
+        }, 3000);
+    }
+
+    // ============================================
+    // AUTO-LOAD STATS ON PAGE LOAD
+    // ============================================
+    document.addEventListener('DOMContentLoaded', () => {
+        // Focus the file input area
+        uploadArea.focus();
+    });
+
+    // ============================================
+    // TOAST STYLES
+    // ============================================
+    const toastStyles = document.createElement('style');
+    toastStyles.textContent = `
+            .toast {
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                background: var(--bg-card);
+                backdrop-filter: blur(20px);
+                border: 1px solid var(--border-glass);
+                border-radius: 12px;
+                padding: 14px 24px;
+                box-shadow: var(--shadow-glass);
+                z-index: 1000;
+                animation: slideIn 0.5s ease;
+                color: var(--text-primary);
+                max-width: 400px;
+            }
+
+            .toast.success {
+                border-left: 4px solid #2ecc71;
+            }
+
+            .toast.error {
+                border-left: 4px solid #e74c3c;
+            }
+
+            @keyframes slideIn {
+                from {
+                    opacity: 0;
+                    transform: translateX(100px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateX(0);
+                }
+            }
+        `;
+    document.head.appendChild(toastStyles);
+</script>
+</body>
+</html>

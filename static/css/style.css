@@ -233,7 +233,8 @@ table tr:last-child td { border-bottom: none; }
     font-family: inherit;
 }
 
-.form-input:focus { border-color: var(--secondary); background: rgba(255, 255, 255, 0.08); }
+.form-input:focus { border-color: var(--secondary); background: #0a0a1ade; }
+.form-group select option { color: white; }
 .form-input::placeholder { color: var(--text-muted); }
 
 .btn-primary {
